@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Royal Ludo - Web Master Admin Panel</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+  <style>
+    body {
+      background: linear-gradient(135deg, #030712 0%, #0b132b 50%, #070a14 100%);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      min-height: 100vh;
+      color: #f8fafc;
+    }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 20px;
+    }
+    .glass-input {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #ffffff;
+    }
+    .glass-input:focus {
+      border-color: #3b82f6;
+      outline: none;
+    }
+    .gold-glow {
+      box-shadow: 0 0 25px rgba(255, 193, 7, 0.4);
+    }
+    /* Mini Board 15x15 Grid styling */
+    .ludo-grid {
+      display: grid;
+      grid-template-columns: repeat(15, minmax(0, 1fr));
+      grid-template-rows: repeat(15, minmax(0, 1fr));
+      gap: 1px;
+      aspect-ratio: 1 / 1;
+      width: 100%;
+      max-width: 420px;
+      margin: 0 auto;
+      background-color: #0f172a;
+      border: 4px solid #334155;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .cell {
+      background-color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      font-size: 10px;
+    }
+    .cell-red-base { background-color: #ef4444; }
+    .cell-green-base { background-color: #22c55e; }
+    .cell-yellow-base { background-color: #eab308; }
+    .cell-blue-base { background-color: #3b82f6; }
+    .cell-red-home { background-color: #f87171; }
+    .cell-green-home { background-color: #4ade80; }
+    .cell-yellow-home { background-color: #fde047; }
+    .cell-blue-home { background-color: #60a5fa; }
+    .cell-safe { background-color: #e2e8f0; }
+    .token-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 4px rgba(0,0,0,0.6);
+      z-index: 10;
+    }
+    .dot-red { background-color: #dc2626; }
+    .dot-green { background-color: #16a34a; }
+    .dot-yellow { background-color: #ca8a04; }
+    .dot-blue { background-color: #2563eb; }
+  </style>
+
+  <!-- Firebase JS SDK (v9/v10 Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+</head>
+<body class="p-4 md:p-8">
+
+  <!-- ADMIN LOGIN MODAL -->
+  <div id="loginModal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+    <div class="glass-card max-w-md w-full p-8 text-center space-y-6">
+      <div class="w-16 h-16 bg-amber-400 text-slate-950 rounded-full flex items-center justify-center mx-auto text-3xl font-extrabold shadow-lg">
+        <i class="fa-solid fa-user-shield"></i>
+      </div>
+      <div>
+        <h1 class="text-2xl font-black text-amber-400 tracking-wide">MASTER ADMIN CONTROL PORTAL</h1>
+        <p class="text-slate-400 text-sm mt-1">Royal Ludo Live Match Supervision</p>
+      </div>
+
+      <div class="space-y-4 text-left">
+        <div>
+          <label class="text-xs text-slate-400 font-bold uppercase">Admin Email</label>
+          <input type="email" id="adminEmail" placeholder="ludo@gmail.com" onkeydown="if(event.key==='Enter') handleAdminLogin()" class="w-full glass-input px-4 py-3 rounded-xl mt-1 text-sm font-semibold"/>
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 font-bold uppercase">Admin Password</label>
+          <input type="password" id="adminPass" placeholder="••••••••" onkeydown="if(event.key==='Enter') handleAdminLogin()" class="w-full glass-input px-4 py-3 rounded-xl mt-1 text-sm font-semibold"/>
+        </div>
+        <p id="loginError" class="text-red-400 text-xs font-bold hidden"></p>
+        <button onclick="handleAdminLogin()" class="w-full bg-amber-400 hover:bg-amber-300 text-slate-950 font-black py-3 rounded-xl text-base shadow-lg transition-all transform active:scale-95">
+          ACCESS MASTER DASHBOARD
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN ADMIN DASHBOARD -->
+  <div id="adminDashboard" class="max-w-7xl mx-auto space-y-6 hidden">
+    <!-- Header Navbar -->
+    <header class="glass-card p-6 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="w-12 h-12 bg-amber-400 text-slate-950 rounded-full flex items-center justify-center text-2xl font-black shadow-md">
+          <i class="fa-solid fa-crown"></i>
+        </div>
+        <div>
+          <h1 class="text-2xl font-black text-white tracking-wide">ROYAL LUDO MASTER WEB CONTROL</h1>
+          <p class="text-xs text-emerald-400 font-bold"><i class="fa-solid fa-circle text-[8px] animate-pulse mr-1"></i> Live Realtime Database Connected</p>
+        </div>
+      </div>
+      <button onclick="handleLogout()" class="bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/40 px-4 py-2 rounded-xl text-sm font-bold transition-all">
+        <i class="fa-solid fa-right-from-bracket mr-2"></i> LOGOUT
+      </button>
+    </header>
+
+    <!-- Room Search & Stats -->
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div class="glass-card p-6 lg:col-span-2 space-y-4">
+        <h2 class="text-amber-400 font-extrabold text-sm uppercase tracking-wider"><i class="fa-solid fa-magnifying-glass mr-2"></i> SEARCH MATCH BY ROOM CODE</h2>
+        <div class="flex gap-3">
+          <input type="text" id="searchRoomInput" placeholder="Enter Room Code (e.g. 123456)" onkeydown="if(event.key==='Enter') searchRoom()" class="flex-1 glass-input px-4 py-3 rounded-xl text-sm font-bold"/>
+          <button id="searchBtn" onclick="searchRoom()" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md transition-all">
+            INSPECT & CONTROL
+          </button>
+        </div>
+        <p id="searchStatusMsg" class="text-xs font-semibold hidden"></p>
+      </div>
+
+      <div class="glass-card p-6 flex items-center justify-between">
+        <div>
+          <p class="text-slate-400 text-xs font-bold uppercase">Recent / Live Matches</p>
+          <h3 id="activeMatchesCount" class="text-3xl font-black text-emerald-400 mt-1">0</h3>
+        </div>
+        <div class="w-12 h-12 bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-400 text-2xl">
+          <i class="fa-solid fa-bolt"></i>
+        </div>
+      </div>
+
+      <div class="glass-card p-6 flex items-center justify-between">
+        <div>
+          <p class="text-slate-400 text-xs font-bold uppercase">Old Matches Loaded</p>
+          <h3 id="oldMatchesCount" class="text-3xl font-black text-amber-400 mt-1">0</h3>
+        </div>
+        <div class="w-12 h-12 bg-amber-500/20 rounded-2xl flex items-center justify-center text-amber-400 text-2xl">
+          <i class="fa-solid fa-box-archive"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Selected Room Master Deck -->
+    <div id="roomControlDeck" class="glass-card p-6 border-amber-400/40 space-y-6 hidden">
+      <div class="flex flex-wrap items-center justify-between border-b border-white/10 pb-4 gap-4">
+        <div>
+          <h2 id="deckRoomTitle" class="text-2xl font-black text-amber-400">MATCH #123456</h2>
+          <p id="deckRoomSubtitle" class="text-xs text-cyan-400 font-semibold mt-1">2 Players Mode • PLAYING</p>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="forceAdvanceTurn()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md">
+            <i class="fa-solid fa-forward mr-1"></i> ADVANCE TURN
+          </button>
+          <button onclick="closeControlDeck()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-xl text-xs font-bold">
+            <i class="fa-solid fa-xmark mr-1"></i> CLOSE
+          </button>
+        </div>
+      </div>
+
+      <!-- MAIN LAYOUT: LIVE BOARD TRACKER (LEFT) + PLAYER CONTROL CARDS (RIGHT) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- LIVE BOARD TRACKER (5 Cols on LG) -->
+        <div class="lg:col-span-5 glass-card p-4 flex flex-col items-center justify-center space-y-3">
+          <h3 class="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-2">
+            <i class="fa-solid fa-eye"></i> LIVE REALTIME BOARD TRACKER
+          </h3>
+
+          <!-- Interactive 15x15 Ludo Grid -->
+          <div id="ludoBoardGrid" class="ludo-grid">
+            <!-- Dynamically generated 225 cells -->
+          </div>
+
+          <div id="boardTurnInfo" class="w-full text-center p-2 rounded-xl bg-slate-900/80 border border-slate-700 text-xs font-extrabold text-slate-300">
+            Current Turn: <span id="currentTurnName" class="text-amber-400">Player 1</span>
+          </div>
+        </div>
+
+        <!-- PLAYERS MULTI-CONTROL DECK (7 Cols on LG) -->
+        <div class="lg:col-span-7 space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-extrabold text-slate-300 uppercase tracking-wider">
+              <i class="fa-solid fa-sliders mr-2 text-amber-400"></i> PLAYERS 1-CLICK CONTROL (TARGET & ENEMIES)
+            </h3>
+            <span class="text-[10px] text-amber-400/90 font-bold bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-full">
+              *Forced roll applies 1 time only
+            </span>
+          </div>
+
+          <!-- Dynamic Container for ALL Players Side-by-Side -->
+          <div id="playersMultiControlContainer" class="grid grid-cols-1 gap-4">
+            <!-- Player cards populated dynamically -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION 1: RECENT / LIVE MATCHES (ONLY ACTIVE / ONGOING MATCHES) -->
+    <section class="glass-card p-6 space-y-4 border-emerald-500/25">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+            <i class="fa-solid fa-tower-broadcast"></i>
+          </span>
+          <div>
+            <h2 class="text-emerald-400 font-extrabold text-sm uppercase tracking-wider">RECENT & LIVE MATCHES</h2>
+            <p class="text-[11px] text-slate-400 font-medium">Realtime active games (Playing, Waiting, Starting) — newest first</p>
+          </div>
+        </div>
+        <span id="recentCountBadge" class="text-xs font-extrabold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+          0 Live
+        </span>
+      </div>
+
+      <div id="recentRoomsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Recent / live room cards -->
+      </div>
+    </section>
+
+    <!-- SECTION 2: OLD / COMPLETED MATCHES ARCHIVE (SEPARATE SECTION, PAGINATED BY 10) -->
+    <section class="glass-card p-6 space-y-4 border-amber-500/25">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3">
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+          </span>
+          <div>
+            <h2 class="text-amber-400 font-extrabold text-sm uppercase tracking-wider">OLD & COMPLETED MATCHES ARCHIVE</h2>
+            <p class="text-[11px] text-slate-400 font-medium">Completed & Cancelled matches — loads 10 at a time</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <span id="oldCountBadge" class="text-xs font-extrabold px-3 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
+            Showing 0
+          </span>
+          <button onclick="loadOldMatches(true)" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 px-3 py-1.5 rounded-xl text-xs font-bold transition-all">
+            <i class="fa-solid fa-rotate mr-1"></i> REFRESH
+          </button>
+        </div>
+      </div>
+
+      <div id="oldRoomsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Old completed / cancelled room cards (10 initial + load more) -->
+      </div>
+
+      <!-- Load More Pagination Controls -->
+      <div class="flex flex-col items-center justify-center pt-2 gap-2">
+        <button id="loadMoreOldBtn" onclick="loadOldMatches(false)" class="bg-amber-400 hover:bg-amber-300 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-slate-950 font-black px-6 py-2.5 rounded-xl text-xs uppercase tracking-wider shadow-md transition-all">
+          <i class="fa-solid fa-chevron-down mr-1.5"></i> LOAD MORE OLD MATCHES (+10)
+        </button>
+        <p id="oldPaginationNote" class="text-[11px] text-slate-400 font-semibold"></p>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // Firebase Realtime Database Config
+    const firebaseConfig = {
+      databaseURL: "https://gen-lang-client-0785137779-default-rtdb.asia-southeast1.firebasedatabase.app"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const rtdb = firebase.database();
+
+    const OLD_PAGE_SIZE = 10;
+    const RTDB_SCAN_CHUNK = 15;
+    const ACTIVE_STATUSES = ["PLAYING", "WAITING", "STARTING"];
+
+    let activeSelectedRoomId = null;
+    let activeSelectedRoomData = null;
+    let selectedRoomRef = null;
+    let selectedRoomCallback = null;
+
+    // Targeted recent listeners by status (never downloads all rooms)
+    const statusListeners = [];
+    const recentRoomsByStatus = {
+      PLAYING: {},
+      WAITING: {},
+      STARTING: {}
+    };
+
+    // Paginated old matches state
+    let oldMatchesList = [];
+    let oldLoadedIds = new Set();
+    let oldCursorCreatedAt = null;
+    let oldCursorKey = null;
+    let hasMoreOldMatches = true;
+    let isLoadingOldMatches = false;
+
+    // 15x15 Grid Layout mappings
+    const mainTrackCells = [
+      [1,6],[2,6],[3,6],[4,6],[5,6],
+      [6,5],[6,4],[6,3],[6,2],[6,1],[6,0],
+      [7,0],
+      [8,0],[8,1],[8,2],[8,3],[8,4],[8,5],
+      [9,6],[10,6],[11,6],[12,6],[13,6],[14,6],
+      [14,7],
+      [14,8],[13,8],[12,8],[11,8],[10,8],[9,8],
+      [8,9],[8,10],[8,11],[8,12],[8,13],[8,14],
+      [7,14],
+      [6,14],[6,13],[6,12],[6,11],[6,10],[6,9],
+      [5,8],[4,8],[3,8],[2,8],[1,8],[0,8],
+      [0,7],[0,6]
+    ];
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function formatTimestamp(ms) {
+      if (!ms || typeof ms !== "number") return "Unknown time";
+      try {
+        const d = new Date(ms);
+        return d.toLocaleString(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+      } catch (e) {
+        return "Unknown time";
+      }
+    }
+
+    function getPlayersSummary(room) {
+      if (!room || !room.players) return "No players";
+      const names = Object.values(room.players)
+        .sort((a, b) => (a.seatIndex || 0) - (b.seatIndex || 0))
+        .map(p => p.displayName || p.username || "Player");
+      return names.join(" vs ");
+    }
+
+    function handleAdminLogin() {
+      const email = document.getElementById("adminEmail").value.trim();
+      const pass = document.getElementById("adminPass").value.trim();
+      const err = document.getElementById("loginError");
+
+      if (email === "ludo@gmail.com" && pass === "ludo@9099") {
+        document.getElementById("loginModal").classList.add("hidden");
+        document.getElementById("adminDashboard").classList.remove("hidden");
+        err.classList.add("hidden");
+        buildLudoBoardGrid();
+        startRealtimeListeners();
+        loadOldMatches(true);
+      } else {
+        err.innerText = "Invalid Master Admin Credentials";
+        err.classList.remove("hidden");
+      }
+    }
+
+    function handleLogout() {
+      stopAllListeners();
+      activeSelectedRoomId = null;
+      activeSelectedRoomData = null;
+      document.getElementById("roomControlDeck").classList.add("hidden");
+      document.getElementById("adminDashboard").classList.add("hidden");
+      document.getElementById("loginModal").classList.remove("hidden");
+    }
+
+    function stopAllListeners() {
+      statusListeners.forEach(({ ref, cb }) => ref.off("value", cb));
+      statusListeners.length = 0;
+
+      if (selectedRoomRef && selectedRoomCallback) {
+        selectedRoomRef.off("value", selectedRoomCallback);
+        selectedRoomRef = null;
+        selectedRoomCallback = null;
+      }
+    }
+
+    function buildLudoBoardGrid() {
+      const grid = document.getElementById("ludoBoardGrid");
+      grid.innerHTML = "";
+      for (let r = 0; r < 15; r++) {
+        for (let c = 0; c < 15; c++) {
+          const cell = document.createElement("div");
+          cell.id = `cell_${c}_${r}`;
+          cell.className = "cell";
+
+          // Color zone classes
+          if (r < 6 && c < 6) cell.classList.add("cell-red-base");
+          else if (r < 6 && c > 8) cell.classList.add("cell-green-base");
+          else if (r > 8 && c > 8) cell.classList.add("cell-yellow-base");
+          else if (r > 8 && c < 6) cell.classList.add("cell-blue-base");
+          else if (r === 7 && c >= 1 && c <= 5) cell.classList.add("cell-red-home");
+          else if (c === 7 && r >= 1 && r <= 5) cell.classList.add("cell-green-home");
+          else if (r === 7 && c >= 9 && c <= 13) cell.classList.add("cell-yellow-home");
+          else if (c === 7 && r >= 9 && r <= 13) cell.classList.add("cell-blue-home");
+
+          grid.appendChild(cell);
+        }
+      }
+    }
+
+    // 1. REALTIME LISTENERS FOR RECENT / LIVE MATCHES ONLY (NO FULL-DB LOAD)
+    function startRealtimeListeners() {
+      stopAllListeners();
+
+      ACTIVE_STATUSES.forEach((statusKey) => {
+        const ref = rtdb.ref("rooms").orderByChild("status").equalTo(statusKey).limitToLast(30);
+        const cb = (snapshot) => {
+          recentRoomsByStatus[statusKey] = snapshot.val() || {};
+          renderRecentRoomsList();
+        };
+        ref.on("value", cb, (err) => {
+          console.error(`Error listening to ${statusKey} rooms:`, err);
+        });
+        statusListeners.push({ ref, cb });
+      });
+    }
+
+    function getMergedRecentRooms() {
+      const mergedMap = new Map();
+      ACTIVE_STATUSES.forEach((statusKey) => {
+        const bucket = recentRoomsByStatus[statusKey] || {};
+        Object.entries(bucket).forEach(([rId, room]) => {
+          if (room) {
+            mergedMap.set(rId, { id: rId, data: room });
+          }
+        });
+      });
+      // Sort newest first; keep PLAYING matches prominent when timestamps tie
+      return Array.from(mergedMap.values()).sort((a, b) => {
+        const timeDiff = (b.data.createdAt || 0) - (a.data.createdAt || 0);
+        if (timeDiff !== 0) return timeDiff;
+        return a.id.localeCompare(b.id);
+      });
+    }
+
+    function renderRecentRoomsList() {
+      const container = document.getElementById("recentRoomsList");
+      const countEl = document.getElementById("activeMatchesCount");
+      const badgeEl = document.getElementById("recentCountBadge");
+      const recentRooms = getMergedRecentRooms();
+
+      countEl.innerText = recentRooms.length;
+      badgeEl.innerText = `${recentRooms.length} Live`;
+      container.innerHTML = "";
+
+      if (recentRooms.length === 0) {
+        container.innerHTML = `<p class="text-slate-400 text-sm font-semibold col-span-full py-4 text-center">No active or recent live matches right now.</p>`;
+        return;
+      }
+
+      recentRooms.forEach(({ id: rId, data: room }) => {
+        container.appendChild(createMatchCard(rId, room, false));
+      });
+    }
+
+    // 2. PAGINATED LOADER FOR OLD / COMPLETED MATCHES (INITIAL 10 + LOAD MORE 10)
+    async function loadOldMatches(reset = false) {
+      if (isLoadingOldMatches) return;
+
+      if (reset) {
+        oldMatchesList = [];
+        oldLoadedIds.clear();
+        oldCursorCreatedAt = null;
+        oldCursorKey = null;
+        hasMoreOldMatches = true;
+      }
+
+      if (!hasMoreOldMatches) {
+        updateOldMatchesPaginationUI();
+        return;
+      }
+
+      isLoadingOldMatches = true;
+      updateOldMatchesPaginationUI();
+
+      try {
+        let addedThisPage = 0;
+        let safetyChunks = 0;
+        const MAX_CHUNKS_PER_CLICK = 8;
+
+        while (addedThisPage < OLD_PAGE_SIZE && hasMoreOldMatches && safetyChunks < MAX_CHUNKS_PER_CLICK) {
+          safetyChunks++;
+
+          let query = rtdb.ref("rooms").orderByChild("createdAt");
+          if (oldCursorCreatedAt !== null && oldCursorKey !== null) {
+            query = query.endBefore(oldCursorCreatedAt, oldCursorKey);
+          }
+          query = query.limitToLast(RTDB_SCAN_CHUNK);
+
+          const snapshot = await query.once("value");
+          const batch = [];
+          snapshot.forEach((child) => {
+            batch.push({ id: child.key, data: child.val() });
+          });
+
+          if (batch.length === 0) {
+            hasMoreOldMatches = false;
+            break;
+          }
+
+          let lastScannedItem = batch[0];
+          // Iterate newest -> oldest inside batch
+          for (let i = batch.length - 1; i >= 0; i--) {
+            const item = batch[i];
+            lastScannedItem = item;
+            const status = item.data?.status || "";
+
+            if ((status === "COMPLETED" || status === "CANCELLED") && !oldLoadedIds.has(item.id)) {
+              oldLoadedIds.add(item.id);
+              oldMatchesList.push(item);
+              addedThisPage++;
+
+              if (addedThisPage >= OLD_PAGE_SIZE) {
+                break;
+              }
+            }
+          }
+
+          // Advance cursor strictly to the last item we scanned (never skip items between matched records)
+          if (lastScannedItem && lastScannedItem.data && typeof lastScannedItem.data.createdAt === "number") {
+            oldCursorCreatedAt = lastScannedItem.data.createdAt;
+            oldCursorKey = lastScannedItem.id;
+          } else {
+            hasMoreOldMatches = false;
+            break;
+          }
+
+          // If DB returned fewer items than requested, there are no older rooms left
+          if (batch.length < RTDB_SCAN_CHUNK && lastScannedItem.id === batch[0].id) {
+            hasMoreOldMatches = false;
+            break;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load old matches:", err);
+        document.getElementById("oldPaginationNote").innerText = "Error loading old matches: " + (err.message || "Unknown error");
+      } finally {
+        isLoadingOldMatches = false;
+        renderOldRoomsList();
+      }
+    }
+
+    function renderOldRoomsList() {
+      const container = document.getElementById("oldRoomsList");
+      const countEl = document.getElementById("oldMatchesCount");
+      const badgeEl = document.getElementById("oldCountBadge");
+
+      countEl.innerText = oldMatchesList.length;
+      badgeEl.innerText = `Showing ${oldMatchesList.length}`;
+      container.innerHTML = "";
+
+      if (oldMatchesList.length === 0 && !isLoadingOldMatches) {
+        container.innerHTML = `<p class="text-slate-400 text-sm font-semibold col-span-full py-4 text-center">No completed or cancelled matches found in archive.</p>`;
+      } else {
+        oldMatchesList.forEach(({ id: rId, data: room }) => {
+          container.appendChild(createMatchCard(rId, room, true));
+        });
+      }
+
+      updateOldMatchesPaginationUI();
+    }
+
+    function updateOldMatchesPaginationUI() {
+      const btn = document.getElementById("loadMoreOldBtn");
+      const note = document.getElementById("oldPaginationNote");
+
+      if (isLoadingOldMatches) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> LOADING...`;
+        note.innerText = "Fetching next batch of 10 old matches...";
+        return;
+      }
+
+      if (!hasMoreOldMatches) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-check mr-1.5"></i> ALL OLD MATCHES LOADED`;
+        note.innerText = oldMatchesList.length > 0
+          ? `Reached the end of archive (${oldMatchesList.length} total loaded).`
+          : "No more archived matches available.";
+      } else {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-chevron-down mr-1.5"></i> LOAD MORE OLD MATCHES (+10)`;
+        note.innerText = `Currently showing ${oldMatchesList.length} archived matches. Click to load 10 more.`;
+      }
+    }
+
+    function createMatchCard(rId, room, isOld) {
+      const pCount = room.players ? Object.keys(room.players).length : 0;
+      const mode = room.gameMode === "FOUR_PLAYER" ? "4 Players" : (room.gameMode === "TWO_PLAYER" ? "2 Players" : (room.gameMode || "2 Players"));
+      const status = room.status || "WAITING";
+
+      const card = document.createElement("div");
+      card.className = `glass-card p-4 cursor-pointer hover:border-amber-400 transition-all space-y-2.5 ${rId === activeSelectedRoomId ? 'border-amber-400 gold-glow' : ''}`;
+      card.onclick = () => selectRoom(rId);
+
+      let statusBadge = `<span class="text-[11px] font-extrabold px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/40">${escapeHtml(status)}</span>`;
+      if (status === 'PLAYING') {
+        statusBadge = `<span class="text-[11px] font-extrabold px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"><i class="fa-solid fa-circle text-[7px] animate-pulse mr-1"></i>PLAYING</span>`;
+      } else if (status === 'STARTING') {
+        statusBadge = `<span class="text-[11px] font-extrabold px-2.5 py-1 rounded-lg bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">STARTING</span>`;
+      } else if (status === 'COMPLETED') {
+        statusBadge = `<span class="text-[11px] font-extrabold px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">COMPLETED</span>`;
+      } else if (status === 'CANCELLED') {
+        statusBadge = `<span class="text-[11px] font-extrabold px-2.5 py-1 rounded-lg bg-red-500/20 text-red-400 border border-red-500/40">CANCELLED</span>`;
+      }
+
+      const playersLine = escapeHtml(getPlayersSummary(room));
+      const timeLabel = formatTimestamp(room.createdAt);
+
+      let extraInfo = "";
+      if (isOld) {
+        if (status === "COMPLETED") {
+          extraInfo = `<div class="text-xs font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5 rounded-lg truncate"><i class="fa-solid fa-trophy mr-1.5"></i>Winner: ${escapeHtml(room.winnerName || "Winner")}</div>`;
+        } else {
+          const leftReason = room.lastLeftPlayerName ? `Left by ${room.lastLeftPlayerName}` : (room.winnerName || "Match cancelled");
+          extraInfo = `<div class="text-xs font-bold text-red-300 bg-red-500/10 border border-red-500/20 px-2.5 py-1.5 rounded-lg truncate"><i class="fa-solid fa-ban mr-1.5"></i>${escapeHtml(leftReason)}</div>`;
+        }
+      } else if (status === "PLAYING" && room.players && room.players[room.currentTurnUid]) {
+        const turnPlayer = room.players[room.currentTurnUid];
+        extraInfo = `<div class="text-xs font-bold text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-lg truncate"><i class="fa-solid fa-dice mr-1.5"></i>Turn: ${escapeHtml(turnPlayer.displayName || "Player")} (${escapeHtml(turnPlayer.color)})</div>`;
+      }
+
+      card.innerHTML = `
+        <div class="flex items-center justify-between gap-2">
+          <h3 class="font-extrabold text-white text-base">Match #${escapeHtml(rId)}</h3>
+          ${statusBadge}
+        </div>
+        <div class="text-xs text-slate-300 font-semibold truncate" title="${playersLine}">
+          <i class="fa-solid fa-users text-slate-400 mr-1.5"></i>${playersLine}
+        </div>
+        ${extraInfo}
+        <div class="text-[11px] text-slate-400 font-semibold flex justify-between pt-1 border-t border-white/5">
+          <span>${escapeHtml(mode)} • ${pCount}P</span>
+          <span>${escapeHtml(timeLabel)}</span>
+        </div>
+      `;
+      return card;
+    }
+
+    // 3. SINGLE-ROOM REALTIME INSPECTOR (ONLY SUBSCRIBES TO THE SELECTED ROOM)
+    function selectRoom(rId) {
+      activeSelectedRoomId = rId;
+      renderRecentRoomsList();
+      renderOldRoomsList();
+
+      if (selectedRoomRef && selectedRoomCallback) {
+        selectedRoomRef.off("value", selectedRoomCallback);
+      }
+
+      selectedRoomRef = rtdb.ref(`rooms/${rId}`);
+      selectedRoomCallback = (snapshot) => {
+        const room = snapshot.val();
+        if (!room) return;
+        activeSelectedRoomData = room;
+        renderRoomControlDeck(rId, room);
+      };
+      selectedRoomRef.on("value", selectedRoomCallback);
+      document.getElementById("roomControlDeck").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    function closeControlDeck() {
+      if (selectedRoomRef && selectedRoomCallback) {
+        selectedRoomRef.off("value", selectedRoomCallback);
+        selectedRoomRef = null;
+        selectedRoomCallback = null;
+      }
+      activeSelectedRoomId = null;
+      activeSelectedRoomData = null;
+      document.getElementById("roomControlDeck").classList.add("hidden");
+      renderRecentRoomsList();
+      renderOldRoomsList();
+    }
+
+    async function searchRoom() {
+      const code = document.getElementById("searchRoomInput").value.trim().replace(/^#/, "");
+      const msgEl = document.getElementById("searchStatusMsg");
+      if (!code) return;
+
+      msgEl.className = "text-xs font-semibold text-cyan-400";
+      msgEl.innerText = `Searching Room #${code}...`;
+      msgEl.classList.remove("hidden");
+
+      try {
+        const snap = await rtdb.ref(`rooms/${code}`).once("value");
+        if (snap.exists()) {
+          msgEl.className = "text-xs font-semibold text-emerald-400";
+          msgEl.innerText = `Loaded Match #${code} into Control Deck.`;
+          selectRoom(code);
+        } else {
+          msgEl.className = "text-xs font-semibold text-red-400";
+          msgEl.innerText = `Room #${code} not found in database.`;
+        }
+      } catch (err) {
+        msgEl.className = "text-xs font-semibold text-red-400";
+        msgEl.innerText = `Search failed: ${err.message}`;
+      }
+    }
+
+    function renderRoomControlDeck(rId, room) {
+      const deck = document.getElementById("roomControlDeck");
+      if (!room) return;
+
+      deck.classList.remove("hidden");
+      document.getElementById("deckRoomTitle").innerText = `MATCH #${rId}`;
+      document.getElementById("deckRoomSubtitle").innerText = `Mode: ${room.gameMode || '2 Players'} • Status: ${room.status || 'WAITING'} • Created: ${formatTimestamp(room.createdAt)}`;
+
+      // Update Live Turn Info
+      const curP = room.players ? room.players[room.currentTurnUid] : null;
+      document.getElementById("currentTurnName").innerText = curP ? `${curP.displayName} (${curP.color})` : (room.winnerName ? `Finished (${room.winnerName})` : 'Waiting');
+
+      // Update Live Board Tokens
+      updateLiveBoardTokens(room);
+
+      // Render Multi-Player Control Cards
+      const container = document.getElementById("playersMultiControlContainer");
+      container.innerHTML = "";
+
+      if (room.players) {
+        Object.values(room.players).forEach(p => {
+          const isCurrentTurn = room.currentTurnUid === p.uid;
+          const isRigged = room.winnerBiasUid === p.uid;
+          const forcedRoll = (room.forcedRollsByUid && room.forcedRollsByUid[p.uid]) || null;
+
+          const pCard = document.createElement("div");
+          pCard.className = `p-4 rounded-2xl border transition-all ${isCurrentTurn ? 'bg-blue-900/40 border-blue-400/80 shadow-lg' : 'bg-slate-900/60 border-slate-800'}`;
+
+          pCard.innerHTML = `
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center font-black text-xs text-white" style="background-color: ${getColorHex(p.color)}">
+                  ${escapeHtml((p.color || "P").substring(0,1))}
+                </div>
+                <div>
+                  <h4 class="font-black text-white text-sm flex items-center gap-2">
+                    ${escapeHtml(p.displayName || 'Player')}
+                    ${isCurrentTurn ? '<span class="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold">ACTIVE TURN</span>' : ''}
+                  </h4>
+                  <p class="text-xs text-slate-400">Color: <span class="font-bold text-slate-200">${escapeHtml(p.color || 'UNKNOWN')}</span></p>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <button onclick="setTurnToPlayer('${rId}', '${p.uid}', '${p.color}')" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 border border-blue-500/40">
+                  <i class="fa-solid fa-play text-[10px] mr-1"></i> GIVE TURN
+                </button>
+                <button onclick="toggleWinnerBias('${rId}', '${p.uid}', '${room.winnerBiasUid || ''}')" class="px-3 py-1.5 rounded-lg text-xs font-extrabold ${isRigged ? 'bg-amber-400 text-slate-950' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'}">
+                  ${isRigged ? '★ AUTO-WIN ACTIVE' : 'SET AUTO-WIN'}
+                </button>
+              </div>
+            </div>
+
+            <!-- FORCED DICE ROLL SELECTION (1-TIME USE) -->
+            <div class="space-y-1.5">
+              <div class="flex justify-between items-center text-xs">
+                <span class="font-bold text-slate-300">FORCED NEXT ROLL FOR THIS PLAYER (1-TIME USE):</span>
+                <span class="font-extrabold text-amber-400">${forcedRoll ? `PENDING: [${forcedRoll}]` : 'NONE'}</span>
+              </div>
+              <div class="grid grid-cols-6 gap-2">
+                <button onclick="injectPlayerDice('${rId}', '${p.uid}', 1)" class="py-2 rounded-lg font-black text-sm bg-slate-800 hover:bg-amber-400 hover:text-slate-950 transition-all ${forcedRoll === 1 ? 'bg-amber-400 text-slate-950' : 'text-white'}">1</button>
+                <button onclick="injectPlayerDice('${rId}', '${p.uid}', 2)" class="py-2 rounded-lg font-black text-sm bg-slate-800 hover:bg-amber-400 hover:text-slate-950 transition-all ${forcedRoll === 2 ? 'bg-amber-400 text-slate-950' : 'text-white'}">2</button>
+                <button onclick="injectPlayerDice('${rId}', '${p.uid}', 3)" class="py-2 rounded-lg font-black text-sm bg-slate-800 hover:bg-amber-400 hover:text-slate-950 transition-all ${forcedRoll === 3 ? 'bg-amber-400 text-slate-950' : 'text-white'}">3</button>
+                <button onclick="injectPlayerDice('${rId}', '${p.uid}', 4)" class="py-2 rounded-lg font-black text-sm bg-slate-800 hover:bg-amber-400 hover:text-slate-950 transition-all ${forcedRoll === 4 ? 'bg-amber-400 text-slate-950' : 'text-white'}">4</button>
+                <button onclick="injectPlayerDice('${rId}', '${p.uid}', 5)" class="py-2 rounded-lg font-black text-sm bg-slate-800 hover:bg-amber-400 hover:text-slate-950 transition-all ${forcedRoll === 5 ? 'bg-amber-400 text-slate-950' : 'text-white'}">5</button>
+                <button onclick="injectPlayerDice('${rId}', '${p.uid}', 6)" class="py-2 rounded-lg font-black text-sm bg-slate-800 hover:bg-amber-400 hover:text-slate-950 transition-all ${forcedRoll === 6 ? 'bg-amber-400 text-slate-950' : 'text-white'}">6</button>
+              </div>
+            </div>
+          `;
+
+          container.appendChild(pCard);
+        });
+      }
+    }
+
+    function getColorHex(colorName) {
+      switch(colorName) {
+        case 'RED': return '#dc2626';
+        case 'GREEN': return '#16a34a';
+        case 'YELLOW': return '#ca8a04';
+        case 'BLUE': return '#2563eb';
+        default: return '#64748b';
+      }
+    }
+
+    function updateLiveBoardTokens(room) {
+      // Clear previous tokens
+      document.querySelectorAll(".token-dot").forEach(el => el.remove());
+
+      if (!room.players) return;
+
+      Object.values(room.players).forEach(p => {
+        if (!p.tokens || !p.color) return;
+        const colorClass = `dot-${p.color.toLowerCase()}`;
+
+        p.tokens.forEach(tok => {
+          let pos = getTokenCellCoords(p.color, tok.tokenId, tok.stepsTaken || 0);
+          if (pos) {
+            const cell = document.getElementById(`cell_${pos.c}_${pos.r}`);
+            if (cell) {
+              const dot = document.createElement("div");
+              dot.className = `token-dot ${colorClass}`;
+              cell.appendChild(dot);
+            }
+          }
+        });
+      });
+    }
+
+    function getTokenCellCoords(color, tokenId, stepsTaken) {
+      if (stepsTaken <= 0) {
+        // Base positions inside 15x15
+        if (color === 'RED') return { c: tokenId % 2 === 0 ? 1 : 4, r: tokenId < 2 ? 1 : 4 };
+        if (color === 'GREEN') return { c: tokenId % 2 === 0 ? 10 : 13, r: tokenId < 2 ? 1 : 4 };
+        if (color === 'YELLOW') return { c: tokenId % 2 === 0 ? 10 : 13, r: tokenId < 2 ? 10 : 13 };
+        if (color === 'BLUE') return { c: tokenId % 2 === 0 ? 1 : 4, r: tokenId < 2 ? 10 : 13 };
+      }
+      if (stepsTaken >= 57) return { c: 7, r: 7 }; // Center
+
+      let startTrackIdx = 0;
+      if (color === 'GREEN') startTrackIdx = 13;
+      if (color === 'YELLOW') startTrackIdx = 26;
+      if (color === 'BLUE') startTrackIdx = 39;
+
+      if (stepsTaken <= 51) {
+        const trackIdx = (startTrackIdx + (stepsTaken - 1)) % 52;
+        const pair = mainTrackCells[trackIdx];
+        return { c: pair[0], r: pair[1] };
+      }
+
+      // Home lane steps
+      const homeStep = stepsTaken - 51;
+      if (color === 'RED') return { c: homeStep, r: 7 };
+      if (color === 'GREEN') return { c: 7, r: homeStep };
+      if (color === 'YELLOW') return { c: 14 - homeStep, r: 7 };
+      if (color === 'BLUE') return { c: 7, r: 14 - homeStep };
+
+      return { c: 7, r: 7 };
+    }
+
+    function injectPlayerDice(rId, pUid, diceVal) {
+      rtdb.ref(`rooms/${rId}/forcedRollsByUid/${pUid}`).set(diceVal)
+        .then(() => {
+          console.log(`Injected 1-time dice [${diceVal}] for player ${pUid}`);
+        });
+    }
+
+    function setTurnToPlayer(rId, pUid, pColor) {
+      rtdb.ref(`rooms/${rId}`).update({
+        currentTurnUid: pUid,
+        currentTurnColor: pColor,
+        "diceState/canMove": false,
+        "diceState/isRolling": false
+      }).then(() => {
+        console.log(`Turn switched to ${pUid}`);
+      });
+    }
+
+    function toggleWinnerBias(rId, pUid, curBias) {
+      const newBias = (curBias === pUid) ? null : pUid;
+      rtdb.ref(`rooms/${rId}/winnerBiasUid`).set(newBias)
+        .then(() => {
+          console.log(`Auto-win bias updated to ${newBias}`);
+        });
+    }
+
+    function forceAdvanceTurn() {
+      if (!activeSelectedRoomId || !activeSelectedRoomData) return;
+      const room = activeSelectedRoomData;
+      if (!room.players) return;
+
+      const playersList = Object.values(room.players).sort((a,b) => a.seatIndex - b.seatIndex);
+      if (playersList.length === 0) return;
+
+      const curIdx = playersList.findIndex(p => p.uid === room.currentTurnUid);
+      const nextIdx = (curIdx < 0 || curIdx >= playersList.length - 1) ? 0 : curIdx + 1;
+      const nextP = playersList[nextIdx];
+
+      setTurnToPlayer(activeSelectedRoomId, nextP.uid, nextP.color);
+    }
+  </script>
+</body>
+</html>
